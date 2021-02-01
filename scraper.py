@@ -123,11 +123,13 @@ def create_deseq_files(count_list, sample_class = ["Tumor","Normal"]):
     full_raw_counts = pd.DataFrame()
     for counts in count_list:
         full_raw_counts = counts.join(full_raw_counts)
+    full_raw_counts=full_raw_counts.fillna(0)
     # Remove duplicated genes
     log.warning("The following genes are duplicated, if any are important for downstream analysis manually remove duplicates")
     duplicated_genes = full_raw_counts[full_raw_counts.index.duplicated(keep="first")].index
     log.warning(set(duplicated_genes))
     full_raw_counts = full_raw_counts[~full_raw_counts.index.duplicated(keep="first")]
+    #Create sample list
     sample_info =pd.DataFrame(index=full_raw_counts.columns)
     sample_list = []
     for i in sample_info.index:
@@ -135,7 +137,7 @@ def create_deseq_files(count_list, sample_class = ["Tumor","Normal"]):
             if i in data.columns:
                 sample_list.append(sample_class[j])
                 continue
-    print(len(sample_list))
+    log.info("Total samples:"+str(len(sample_list)))
     sample_info['Type']=sample_list
     return full_raw_counts, sample_info
 

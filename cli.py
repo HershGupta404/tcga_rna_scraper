@@ -6,7 +6,15 @@ import os
 import sys
 import scraper
 from shutil import copy2
+import subprocess
+import logging
 
+logging.basicConfig(
+    format='%(asctime)s %(levelname)-8s %(message)s',
+    level=logging.INFO,
+    datefmt='%Y-%m-%d %H:%M:%S')
+
+log = logging.getLogger('CLI')
 
 def parse_cli():
 	parser = argparse.ArgumentParser(description = "Parse TCGA metadata files and either download files or get summary statistics")
@@ -22,6 +30,7 @@ def read_config(config_file):
 	pass
 
 def full_load(histology,root_location,json_file,include_others, config_options=None):
+	original_location = os.getcwd()
 	os.chdir(root_location)
 	# Build the file structure as shown in the diagram
 	os.mkdir(histology)
@@ -40,15 +49,30 @@ def full_load(histology,root_location,json_file,include_others, config_options=N
 	normal_files = file_table[file_table["type"]=="Normal"].index
 	tumor_files = file_table[file_table["type"]=="Tumor"].index
 	scraper.download_files(normal_files, "normal_tissue")
+	normal_matrix=scraper.combine_raw_rna("normal_tissue")
 	scraper.download_files(tumor_files, "tumor_tissue")
+	tumor_matrix=scraper.combine_raw_rna("tumor_tissue")
 	if include_others:
 		other_files = file_table[file_table["type"]=="Other"]
 		scraper.download_files(other_files, "other_tissue")
+		other_matrix = scraper.combine_raw_rna("other_tissue")
+		# Create the deseq matrices
+		deseq_matrix, sample_info = scraper.create_deseq_files([tumor_matrix,normal_matrix,other_matrix],["Tumor","Normal","Other"])
+	else:
+		deseq_matrix, sample_info = scraper.create_deseq_files([tumor_matrix,normal_matrix])
 
+	# Deseq input save off 
 
+	log.info("Running DESeq")
+	os.chdir("../deseq_input")
+	deseq_matrix.to_csv("raw_counts.csv")
+	sample_info.to_csv("sample_table.csv")
 
-
-
+	# Run DESeq script
+	deseq_directory = os.getcwd()
+	os.chdir(original_location)
+	subprocess.run("Rscript deseq_script.R "+deseq_directory, shell=True)
+	log.info("Files saved off successfully")
 
 
 
